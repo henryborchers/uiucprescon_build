@@ -10,7 +10,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-version = "0.1.0"
+version = "0.1.1b1"
 dependencies = [
     "setuptools>=61.0",
     'wheel',
