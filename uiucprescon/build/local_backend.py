@@ -34,7 +34,10 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         if original_conan_user_home:
             os.environ["CONAN_USER_HOME"] = original_conan_user_home
         else:
-            os.unsetenv("CONAN_USER_HOME")
+            try:
+                os.unsetenv("CONAN_USER_HOME")
+            except AttributeError:
+                pass
 
 
 def get_requires_for_build_sdist(config_settings=None):
