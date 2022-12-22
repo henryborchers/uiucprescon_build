@@ -4,3 +4,4 @@ mypy
 pytest
 pytest-runner
 pylint
+coverage

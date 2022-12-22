@@ -20,6 +20,23 @@ pipeline {
                 }
                 stage('Run Checks'){
                     parallel{
+                        stage('PyTest'){
+                            steps{
+                                catchError(buildResult: 'UNSTABLE', message: 'Did not pass all pytest tests', stageResult: 'UNSTABLE') {
+                                    sh(
+                                        label: 'Running Pytest',
+                                        script:'''mkdir -p reports/coverage
+                                                  coverage run --parallel-mode --source=uiucprescon -m pytest --junitxml=reports/pytest.xml
+                                                  '''
+                                   )
+                               }
+                            }
+                            post {
+                                always {
+                                    junit 'reports/pytest.xml'
+                                }
+                            }
+                        }
                         stage('Pylint'){
                             steps{
                                 withEnv(['PYLINTHOME=/tmp/.cache/pylint']) {
@@ -69,6 +86,23 @@ pipeline {
                                     publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'reports/mypy/html/', reportFiles: 'index.html', reportName: 'MyPy HTML Report', reportTitles: ''])
                                 }
                             }
+                        }
+                    }
+                    post{
+                        always{
+                            sh(label: 'combining coverage data',
+                               script: '''coverage combine
+                                          coverage xml -o ./reports/coverage-python.xml
+                                          sed -i 's/uiucprescon\\/build\\///' reports/coverage-python.xml
+                                          '''
+                            )
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/coverage-python.xml'
+                            publishCoverage(
+                                adapters: [
+                                        coberturaAdapter(mergeToOneReport: true, path: 'reports/coverage*.xml')
+                                    ],
+                                sourceFileResolver: sourceFiles('STORE_ALL_BUILD'),
+                           )
                         }
                     }
                 }

@@ -15,7 +15,7 @@ from uiucprescon.build.compiler_info import get_compiler_version, get_compiler_n
 import json
 from distutils.dist import Distribution
 import toml
-
+from conans.client import conan_api, conf
 
 class ConanBuildInfoParser:
     def __init__(self, fp):
@@ -387,6 +387,13 @@ def build_conan(
     dist = Distribution()
     dist.parse_config_files()
     command = BuildConan(dist)
+    if metadata_directory is not None:
+        build_py = command.get_finalized_command("build_py")
+        build_py.build_lib = wheel_directory
+        build_ext = command.get_finalized_command("build_ext")
+        build_ext.build_temp = wheel_directory
+        build_clib = command.get_finalized_command("build_clib")
+        build_clib.build_temp = wheel_directory
     command.install_libs = install_libs
     build_ext_cmd = command.get_finalized_command("build_ext")
     conan_cache = None
@@ -444,7 +451,6 @@ def build_deps_with_conan(
         build=None
 ):
 
-    from conans.client import conan_api, conf
     conan = conan_api.Conan(cache_folder=os.path.abspath(conan_cache))
     settings = []
     logger = logging.Logger(__name__)
