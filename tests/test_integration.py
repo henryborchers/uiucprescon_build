@@ -17,9 +17,9 @@ setup(
     version='1.0',
     ext_modules=[
         Pybind11Extension(
-            "dummy.myextension",
+            "dummy.spam",
             sources=[
-                "myextension.cpp",
+                "spamextension.cpp",
             ],
             language="c++",
         )
@@ -42,8 +42,13 @@ from conans import ConanFile
 class Dummy(ConanFile):
     requires = []
     """)
-    myextension_cpp = source_root / "myextension.cpp"
+
+    myextension_cpp = source_root / "spamextension.cpp"
     myextension_cpp.write_text("""#include <iostream>
+    #include <pybind11/pybind11.h>
+    PYBIND11_MODULE(spam, m){
+        m.doc() = R"pbdoc(Spam lovely spam)pbdoc";
+    }
     """)
 
     output = tmp_path / "output"
