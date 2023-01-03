@@ -1,5 +1,6 @@
 [build-system]
 requires = ["setuptools>=61.0", 'wheel']
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "uiucprescon.build"
@@ -23,6 +24,9 @@ dependencies = [
 license = {text = "University of Illinois/NCSA Open Source License"}
 readme = "README.md"
 requires-python = ">=3.7"
+
+[tool.setuptools]
+packages = ['uiucprescon.build']
 
 [tool.coverage.run]
 relative_files = false
