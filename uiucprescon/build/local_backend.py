@@ -14,9 +14,12 @@ def build_sdist(sdist_directory, config_settings=None):
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
-    if config_settings is not None and config_settings.get('conan_cache') is not None:
-        if "CONAN_USER_HOME" in os.environ:
-            config_settings['conan_cache'] = os.path.join(os.environ["CONAN_USER_HOME"], ".conan")
+    if (
+        config_settings is not None
+        and config_settings.get('conan_cache') is not None
+        and "CONAN_USER_HOME" in os.environ
+    ):
+        config_settings['conan_cache'] = os.path.join(os.environ["CONAN_USER_HOME"], ".conan")
 
     conan_libs.build_conan(
         wheel_directory,

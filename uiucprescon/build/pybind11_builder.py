@@ -48,11 +48,11 @@ class BuildPybind11Extension(build_ext):
         conanfileinfo_locations = [
             self.get_finalized_command("build_clib").build_temp
         ]
-        conan_info_dir = os.environ.get('CONAN_BUILD_INFO_DIR')
-        if conan_info_dir:
+        if conan_info_dir := os.environ.get('CONAN_BUILD_INFO_DIR'):
             conanfileinfo_locations.insert(0, conan_info_dir)
-        conanbuildinfo = conan_libs.locate_conanbuildinfo(conanfileinfo_locations)
-        if conanbuildinfo:
+        if conanbuildinfo := conan_libs.locate_conanbuildinfo(
+            conanfileinfo_locations
+        ):
             strategies.insert(
                 0,
                 UseConanFileBuildInfo(path=os.path.dirname(conanbuildinfo))
@@ -103,11 +103,11 @@ class BuildPybind11Extension(build_ext):
             self.copy_tree(lib_output, dest)
 
         if sys.platform == "linux":
-            if not self._inplace:
-                ext.runtime_library_dirs.append("$ORIGIN")
-            else:
+            if self._inplace:
                 ext.runtime_library_dirs.append(os.path.abspath(lib_output))
                 ext.library_dirs.insert(0, os.path.abspath(lib_output))
+            else:
+                ext.runtime_library_dirs.append("$ORIGIN")
         ext.library_dirs = list(parse_conan_build_info(conan_build_info, "libdirs")) + ext.library_dirs
         ext.include_dirs = list(parse_conan_build_info(conan_build_info, "includedirs")) + ext.include_dirs
         defines = parse_conan_build_info(conan_build_info, "defines")
@@ -154,10 +154,9 @@ def parse_conan_build_info(conan_build_info_file, section):
             if line.strip() == f"[{section}]":
                 found = True
                 continue
+            if found and line.strip() == "":
+                found = False
+                continue
             if found:
-                if line.strip() == "":
-                    found = False
-                    continue
-                if found:
-                    items.add(line.strip())
+                items.add(line.strip())
     return items
