@@ -4,7 +4,7 @@ pipeline {
         timeout(time: 1, unit: 'DAYS')
     }
     stages{
-        stage('Testing'){
+        stage('Building and Testing'){
             agent {
                 dockerfile {
                     filename 'ci/docker/linux/jenkins/Dockerfile'
@@ -16,6 +16,28 @@ pipeline {
                 stage('Setting up'){
                     steps{
                         sh 'mkdir -p reports'
+                    }
+                }
+                stage('Building Docs'){
+                    steps{
+                        sh 'python3 -m sphinx -W --keep-going -b html docs build/docs/html -w logs/build_sphinx_html.log'
+                    }
+                    post{
+                        always{
+                            recordIssues(tools: [sphinxBuild(pattern: 'logs/build_sphinx_html.log')])
+                        }
+                        success{
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/docs/html', reportFiles: 'index.html', reportName: 'Documentation', reportTitles: ''])
+                        }
+                        cleanup{
+                            cleanWs(
+                                notFailBuild: true,
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'build/', type: 'INCLUDE'],
+                                ]
+                            )
+                        }
                     }
                 }
                 stage('Run Checks'){
