@@ -20,7 +20,21 @@ pipeline {
                 }
                 stage('Building Docs'){
                     steps{
-                        sh 'sphinx-build -b html docs build/docs'
+                        sh 'python -m sphinx -W --keep-going -b html docs build/docs -w logs/build_sphinx_html.log'
+                    }
+                    post{
+                        always{
+                            recordIssues(tools: [sphinxBuild(pattern: 'logs/build_sphinx_html.log')])
+                        }
+                        cleanup{
+                            cleanWs(
+                                notFailBuild: true,
+                                deleteDirs: true,
+                                patterns: [
+                                    [pattern: 'build/', type: 'INCLUDE'],
+                                ]
+                            )
+                        }
                     }
                 }
                 stage('Run Checks'){
