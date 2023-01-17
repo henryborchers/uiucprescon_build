@@ -4,7 +4,7 @@ pipeline {
         timeout(time: 1, unit: 'DAYS')
     }
     stages{
-        stage('Testing'){
+        stage('Building and Testing'){
             agent {
                 dockerfile {
                     filename 'ci/docker/linux/jenkins/Dockerfile'
@@ -16,6 +16,11 @@ pipeline {
                 stage('Setting up'){
                     steps{
                         sh 'mkdir -p reports'
+                    }
+                }
+                stage('Building Docs'){
+                    steps{
+                        sh 'sphinx-build -b html docs build/docs'
                     }
                 }
                 stage('Run Checks'){
