@@ -6,6 +6,9 @@ from uiucprescon import build
 def test_conan_integration(tmp_path, monkeypatch):
     source_root = tmp_path / "package"
     source_root.mkdir()
+
+    home = tmp_path / "home"
+
     setup_py = source_root / 'setup.py'
     setup_py.write_text("""
 from setuptools import setup
@@ -55,5 +58,6 @@ class Dummy(ConanFile):
     with open(pyproject) as f:
         print(f.read())
     monkeypatch.chdir(source_root)
+    monkeypatch.setenv("HOME", str(home))
     build.build_wheel(str(output))
     assert any(f.startswith('dummy') for f in os.listdir(output))
