@@ -1,7 +1,16 @@
+def tox
+node(){
+    checkout scm
+    tox = load('ci/jenkins/scripts/tox.groovy')
+}
+
 pipeline {
     agent none
     options {
         timeout(time: 1, unit: 'DAYS')
+    }
+    parameters{
+        booleanParam(name: 'TEST_RUN_TOX', defaultValue: false, description: 'Run Tox Tests')
     }
     stages{
         stage('Building and Testing'){
@@ -39,7 +48,7 @@ pipeline {
                         }
                     }
                 }
-                stage('Testing') {
+                stage('Code Quality') {
                     agent {
                         dockerfile {
                             filename 'ci/docker/linux/jenkins/Dockerfile'
@@ -153,6 +162,40 @@ pipeline {
                             )
                         }
                     }
+                }
+                stage('Tox') {
+                    when{
+                        equals expected: true, actual: params.TEST_RUN_TOX
+                    }
+                    steps{
+                        script{
+                            def linuxJobs = [:]
+                            def windowsJobs = [:]
+                            linuxJobs = tox.getToxTestsParallel(
+                                envNamePrefix: 'Tox Linux',
+                                label: 'linux && docker',
+                                dockerfile: 'ci/docker/linux/tox/Dockerfile',
+                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL',
+                                dockerRunArgs: "-v pipcache_uiucprescon_build:/.cache/pip"
+                            )
+                            windowsJobs = tox.getToxTestsParallel(
+                                envNamePrefix: 'Tox Windows',
+                                label: 'windows && docker && x86',
+                                dockerfile: 'ci/docker/windows/tox/Dockerfile',
+                                dockerArgs: '--build-arg PIP_EXTRA_INDEX_URL --build-arg PIP_INDEX_URL --build-arg CHOCOLATEY_SOURCE',
+                                dockerRunArgs: "-v pipcache_uiucprescon_build:c:/users/containeradministrator/appdata/local/pip"
+                            )
+                            parallel(linuxJobs + windowsJobs)
+                        }
+                    }
+//                     post{
+//                         failure{
+//                             sh 'pip list'
+//                         }
+//                         cleanup{
+//                             sh 'ls -aR'
+//                         }
+//                     }
                 }
             }
         }
