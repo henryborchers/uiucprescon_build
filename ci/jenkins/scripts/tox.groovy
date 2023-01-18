@@ -125,28 +125,31 @@ def getToxTestsParallel(args = [:]){
     def label = args['label']
     def dockerfile = args['dockerfile']
     def dockerArgs = args['dockerArgs']
+    def retries = args.containsKey('retry') ? args.retry : 1
     script{
         def envs
         def originalNodeLabel
         def dockerImageName = "${currentBuild.fullProjectName}:tox".replaceAll("-", "").replaceAll('/', "").replaceAll(' ', "").toLowerCase()
-        node(label){
-            originalNodeLabel = env.NODE_NAME
-            checkout scm
-            def dockerImage = docker.build(dockerImageName, "-f ${dockerfile} ${dockerArgs} .")
-            dockerImage.inside{
-                envs = getToxEnvs()
-            }
-            if(isUnix()){
-                sh(
-                    label: "Removing Docker Image used to run tox",
-                    script: "docker image rm --no-prune ${dockerImageName}"
-                )
-            } else {
-                bat(
-                    label: "Removing Docker Image used to run tox",
-                    script: """docker image rm --no-prune ${dockerImageName}
-                               """
-                )
+        retry(retries){
+            node(label){
+                originalNodeLabel = env.NODE_NAME
+                checkout scm
+                def dockerImage = docker.build(dockerImageName, "-f ${dockerfile} ${dockerArgs} .")
+                dockerImage.inside{
+                    envs = getToxEnvs()
+                }
+                if(isUnix()){
+                    sh(
+                        label: "Removing Docker Image used to run tox",
+                        script: "docker image rm --no-prune ${dockerImageName}"
+                    )
+                } else {
+                    bat(
+                        label: "Removing Docker Image used to run tox",
+                        script: """docker image rm --no-prune ${dockerImageName}
+                                   """
+                    )
+                }
             }
         }
         echo "Found tox environments for ${envs.join(', ')}"
@@ -156,55 +159,57 @@ def getToxTestsParallel(args = [:]){
             def jenkinsStageName = "${envNamePrefix} ${tox_env}"
             def nodesUsed = []
             [jenkinsStageName,{
-                node(label){
-                    ws{
-                        checkout scm
-                        def dockerImageForTesting = docker.build(dockerImageName, "-f ${dockerfile} ${dockerArgs} . ")
-                        try{
-                            dockerImageForTesting.inside{
+                retry(retries){
+                    node(label){
+                        ws{
+                            checkout scm
+                            def dockerImageForTesting = docker.build(dockerImageName, "-f ${dockerfile} ${dockerArgs} . ")
+                            try{
+                                dockerImageForTesting.inside{
+                                    if(isUnix()){
+                                        sh(
+                                            label: "Running Tox with ${tox_env} environment",
+                                            script: "tox -v -e ${tox_env}"
+                                        )
+                                    } else {
+                                        bat(
+                                            label: "Running Tox with ${tox_env} environment",
+                                            script: "tox -v -e ${tox_env}"
+                                        )
+                                    }
+                                    cleanWs(
+                                        deleteDirs: true,
+                                        patterns: [
+                                            [pattern: ".tox/", type: 'INCLUDE'],
+                                        ]
+                                    )
+                                }
+                            } finally {
                                 if(isUnix()){
-                                    sh(
-                                        label: "Running Tox with ${tox_env} environment",
-                                        script: "tox -v -e ${tox_env}"
-                                    )
+                                    def runningContainers = sh(
+                                                               script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}",
+                                                               returnStdout: true,
+                                                               )
+                                    if (!runningContainers?.trim()) {
+                                        sh(
+                                            label: "Removing Docker Image used to run tox",
+                                            script: "docker image rm --no-prune ${dockerImageName}",
+                                        )
+                                    }
+                                    sh(script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}")
                                 } else {
-                                    bat(
-                                        label: "Running Tox with ${tox_env} environment",
-                                        script: "tox -v -e ${tox_env}"
-                                    )
+                                    def runningContainers = bat(
+                                                    returnStdout: true,
+                                                    script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}"
+                                                    )
+                                    if (!runningContainers?.trim()) {
+                                        bat(
+                                            label: "Removing Docker Image used to run tox",
+                                            script: "docker image rm --no-prune ${dockerImageName}",
+                                        )
+                                    }
+                                    bat(script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}")
                                 }
-                                cleanWs(
-                                    deleteDirs: true,
-                                    patterns: [
-                                        [pattern: ".tox/", type: 'INCLUDE'],
-                                    ]
-                                )
-                            }
-                        } finally {
-                            if(isUnix()){
-                                def runningContainers = sh(
-                                                           script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}",
-                                                           returnStdout: true,
-                                                           )
-                                if (!runningContainers?.trim()) {
-                                    sh(
-                                        label: "Removing Docker Image used to run tox",
-                                        script: "docker image rm --no-prune ${dockerImageName}",
-                                    )
-                                }
-                                sh(script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}")
-                            } else {
-                                def runningContainers = bat(
-                                                returnStdout: true,
-                                                script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}"
-                                                )
-                                if (!runningContainers?.trim()) {
-                                    bat(
-                                        label: "Removing Docker Image used to run tox",
-                                        script: "docker image rm --no-prune ${dockerImageName}",
-                                    )
-                                }
-                                bat(script: "docker ps --no-trunc --filter ancestor=${dockerImageName} --format {{.Names}}")
                             }
                         }
                     }
