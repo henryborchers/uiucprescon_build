@@ -1,9 +1,3 @@
-def tox
-node(){
-    checkout scm
-    tox = load('ci/jenkins/scripts/tox.groovy')
-}
-
 pipeline {
     agent none
     options {
@@ -169,6 +163,13 @@ pipeline {
                     }
                     steps{
                         script{
+                            def tox = fileLoader.fromGit(
+                                                        'tox',
+                                                        'https://github.com/UIUCLibrary/jenkins_helper_scripts.git',
+                                                        '4',
+                                                        null,
+                                                        ''
+                                                        )
                             def linuxJobs = [:]
                             def windowsJobs = [:]
                             linuxJobs = tox.getToxTestsParallel(
