@@ -1,7 +1,8 @@
+coverage
 flake8
 lxml
 mypy
 pytest
 pytest-runner
 pylint
-coverage
+sphinx
