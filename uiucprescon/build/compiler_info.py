@@ -59,8 +59,6 @@ def get_visual_studio_version():
 
 
 def get_clang_version():
-    cmd = ['cc', '--version']
-
     env = None
     if sys.platform == 'darwin':
         global _cfg_target, _cfg_target_split
@@ -80,14 +78,12 @@ def get_clang_version():
             cur_target_split = [int(x) for x in cur_target.split('.')]
             if _cfg_target_split[:2] >= [10, 3] and cur_target_split[:2] < [10,
                                                                             3]:
-                my_msg = ('$MACOSX_DEPLOYMENT_TARGET mismatch: '
-                          'now "%s" but "%s" during configure;'
-                          'must use 10.3 or later'
-                          % (cur_target, _cfg_target))
+                my_msg = f'$MACOSX_DEPLOYMENT_TARGET mismatch: now "{cur_target}" but "{_cfg_target}" during configure;must use 10.3 or later'
                 raise PlatformError(my_msg)
             env = dict(os.environ,
                        MACOSX_DEPLOYMENT_TARGET=cur_target)
 
+    cmd = ['cc', '--version']
     try:
         proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE)
         proc.wait()

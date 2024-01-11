@@ -13,7 +13,7 @@ def parse_dumpbin_deps(file) -> List[str]:
 
     with open(file) as f:
         d = dep_regex.search(f.read())
-        for x in d.group(0).split("\n"):
+        for x in d[0].split("\n"):
             if x.strip() == "":
                 continue
             dll = x.strip()

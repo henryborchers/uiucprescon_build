@@ -22,12 +22,10 @@ class ConanBuildInfoParser:
         self._fp = fp
 
     def parse(self) -> Dict[str, List[str]]:
-        data = dict()
-        for subject_chunk in self.iter_subject_chunk():
-            subject_title = subject_chunk[0][1:-1]
-
-            data[subject_title] = subject_chunk[1:]
-        return data
+        return {
+            subject_chunk[0][1:-1]: subject_chunk[1:]
+            for subject_chunk in self.iter_subject_chunk()
+        }
 
     def iter_subject_chunk(self) -> Iterable[Any]:
         buffer = []
@@ -35,7 +33,7 @@ class ConanBuildInfoParser:
             line = line.strip()
             if len(line) == 0:
                 continue
-            if line.startswith("[") and line.endswith("]") and len(buffer) > 0:
+            if line.startswith("[") and line.endswith("]") and buffer:
                 yield buffer
                 buffer.clear()
             buffer.append(line)
@@ -60,11 +58,11 @@ class ConanBuildInfoTXT(AbsConanBuildInfo):
             lib_paths = data['libdirs']
             bin_paths = data['bindirs']
             libs = data['libs']
-            names = []
-            for value in data.keys():
-                if not value.startswith("name_"):
-                    continue
-                names.append(value.replace("name_", ""))
+            names = [
+                value.replace("name_", "")
+                for value in data.keys()
+                if value.startswith("name_")
+            ]
             # print(names)
             libsmetadata = {}
             for library_name in names:
@@ -143,7 +141,7 @@ class WindowsResultTester(AbsResultTester):
             for location in locations:
                 dep_path = os.path.join(location, dep)
                 if os.path.exists(dep_path):
-                    print("Found requirement: {}".format(dep_path))
+                    print(f"Found requirement: {dep_path}")
                     break
             else:
                 print(f"Couldn't find {dep}")
@@ -452,16 +450,16 @@ def build_deps_with_conan(
 ):
 
     conan = conan_api.Conan(cache_folder=os.path.abspath(conan_cache))
-    settings = []
     logger = logging.Logger(__name__)
     conan_profile_cache = os.path.join(build_dir, "profiles")
     build = build or ['outdated']
-    for name, value in conf.detect.detect_defaults_settings(
-            logger,
-            conan_profile_cache
-    ):
-        settings.append(f"{name}={value}")
-    if debug is True:
+    settings = [
+        f"{name}={value}"
+        for name, value in conf.detect.detect_defaults_settings(
+            logger, conan_profile_cache
+        )
+    ]
+    if debug:
         settings.append("build_type=Debug")
     else:
         settings.append("build_type=Release")
@@ -473,14 +471,10 @@ def build_deps_with_conan(
                 settings.remove('compiler.libcxx=libstdc')
             settings.append(f'compiler.libcxx={compiler_libcxx}')
         settings.append(f"compiler.version={compiler_version}")
-        if compiler_name == 'gcc':
-            pass
+        if compiler_name == "Visual Studio":
+            settings.extend(("compiler.runtime=MD", "compiler.toolset=v142"))
         elif compiler_name == "msvc":
-            settings.append("compiler.cppstd=14")
-            settings.append("compiler.runtime=dynamic")
-        elif compiler_name == "Visual Studio":
-            settings.append("compiler.runtime=MD")
-            settings.append("compiler.toolset=v142")
+            settings.extend(("compiler.cppstd=14", "compiler.runtime=dynamic"))
     except AttributeError:
         print(
             f"Unable to get compiler information "
@@ -520,53 +514,54 @@ def build_deps_with_conan(
 
 
 def fixup_library(shared_library):
-    if sys.platform == "darwin":
-        otool = shutil.which("otool")
-        install_name_tool = shutil.which('install_name_tool')
-        if not all([otool, install_name_tool]):
-            raise FileNotFoundError(
-                "Unable to fixed up because required tools are missing. "
-                "Make sure that otool and install_name_tool are on "
-                "the PATH."
-            )
-        dylib_regex = re.compile(
-            r'^(?P<path>([@a-zA-Z./_])+)'
-            r'/'
-            r'(?P<file>lib[a-zA-Z/.0-9]+\.dylib)'
+    if sys.platform != "darwin":
+        return
+    otool = shutil.which("otool")
+    install_name_tool = shutil.which('install_name_tool')
+    if not all([otool, install_name_tool]):
+        raise FileNotFoundError(
+            "Unable to fixed up because required tools are missing. "
+            "Make sure that otool and install_name_tool are on "
+            "the PATH."
         )
-        for line in subprocess.check_output(
+    dylib_regex = re.compile(
+        r'^(?P<path>([@a-zA-Z./_])+)'
+        r'/'
+        r'(?P<file>lib[a-zA-Z/.0-9]+\.dylib)'
+    )
+    for line in subprocess.check_output(
                 [otool, "-L", shared_library],
                 encoding="utf8"
         ).split("\n"):
-            if any(
-                [
-                    line.strip() == "",  # it's an empty line
-                    str(shared_library) in line,  # it's the same library
-                    "/usr/lib/" in line,  # it's a system library
+        if any(
+            [
+                line.strip() == "",  # it's an empty line
+                str(shared_library) in line,  # it's the same library
+                "/usr/lib/" in line,  # it's a system library
 
-                ]
-            ):
-                continue
-            value = dylib_regex.match(line.strip())
-            try:
-                original_path = value.group("path")
-                library_name = value.group("file").strip()
-            except AttributeError as e:
-                raise ValueError(f"unable to parse {line}") from e
-            command = [
-                install_name_tool,
-                "-change",
-                os.path.join(original_path, library_name),
-                os.path.join("@loader_path", library_name),
-                str(shared_library)
             ]
-            subprocess.check_call(command)
+        ):
+            continue
+        value = dylib_regex.match(line.strip())
+        try:
+            original_path = value["path"]
+            library_name = value["file"].strip()
+        except AttributeError as e:
+            raise ValueError(f"unable to parse {line}") from e
+        command = [
+            install_name_tool,
+            "-change",
+            os.path.join(original_path, library_name),
+            os.path.join("@loader_path", library_name),
+            str(shared_library)
+        ]
+        subprocess.check_call(command)
 
 
 def add_conan_imports(import_manifest_file: str, path: str, dest: str):
     libs = []
     with open(import_manifest_file, "r", encoding="utf8") as f:
-        for line in f.readlines():
+        for line in f:
             if ":" not in line:
                 continue
 
